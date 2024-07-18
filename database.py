@@ -7,94 +7,95 @@ logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s  - %(name)s - %(levelname)s : %(message)s - [%(filename)s:%(lineno)d]',  
                     datefmt='[%Y-%m-%d | %H:%M:%S]') 
 
-collection_Url = DB_URL
+collectionUrl = DB_URL
 
-client = pymongo.MongoClient(collection_Url)
-Database = client.get_database('test_db')
-NoticesCollection = Database.get_collection('notices') 
-if NoticesCollection is None:
-    NoticesCollection = Database['notices']
+client = pymongo.MongoClient(collectionUrl)
+database = client.get_database('whatsapp_bot_db')
+noticesCollection = database.get_collection('notices') 
+if noticesCollection is None:
+    noticesCollection = database['notices']
     
-async def create_notices(scraped_data: list[str]) -> dict:
+async def createNotices(scapedData: list[str]) -> dict:
     try:
         index = 1
         created = False
         while index <= 10:
-            notice_details = scraped_data[index]
-            title, publish_by, date = notice_details
+            noticeDetails = scapedData[index]
+            title, publishedBy, date = noticeDetails
             notice = {
             'NoticeId' : index,
             'Title' : title,
-            'Publish_by' :publish_by,
-            'Date' : date   
+            'Date' : date,
+            'Published_By' :publishedBy
             }
             
-            NoticesCollection.insert_one(notice)
+            noticesCollection.insert_one(notice)
             index += 1
             created = True if index == 11 else False
             
-        return {create_notices.__name__ : created, 'NoticeId' : index - 1}
+        return {createNotices.__name__ : created, 'NoticeId' : index - 1}
             
     except Exception as error:
-        logging.error(f"{create_notices.__name__}: {str(error)}") 
+        logging.error(f"{createNotices.__name__}: {str(error)}") 
     
-async def update_notices(index: int, scraped_data: dict) -> dict:
+async def updateNotices(index: int, scapedData: dict) -> dict:
     try:
         while index >= 1:
-            title, publish_by, date = scraped_data[index]            
-            NoticesCollection.find_one_and_update(
+            title, publishedBy, date = scapedData[index]            
+            noticesCollection.find_one_and_update(
             {'NoticeId' : index}, 
-            {'$set' : {'Title': title, 'Publish_by' : publish_by, 'Date' : date}}
+            {'$set' : {'Title': title, 'Date' : date, 'Published_By' : publishedBy}}
             )
             
             index -= 1
 
     except Exception as error:
-        logging.error(f"{update_notices.__name__}: {str(error)}")
+        logging.error(f"{updateNotices.__name__}: {str(error)}")
     
-async def compare_notices(scraped_data: dict) -> dict:
+async def compareNotices(scapedData: dict) -> dict:
     try:
         index = 10
-        all_matched = False
-        scrapped_title = scraped_data[index][0]
+        allMatched = False
+        scrapedTitle = scapedData[index][0]
         
         while index >= 1:
-            scrapped_title = scraped_data[index][0]
+            scrapedTitle = scapedData[index][0]
             
-            is_title_exist = NoticesCollection.find_one(
-            {"Title" : scrapped_title}, {'NoticeId': 1}
+            isTitleExist = noticesCollection.find_one(
+            {"Title" : scrapedTitle}, {'NoticeId': 1}
     )       
             
-            if is_title_exist is None:
+            if isTitleExist is None:
                 break
             
             index -= 1
-            all_matched = True if index == 0 else False
+            allMatched = True if index == 0 else False
         
-        return {compare_notices.__name__ : all_matched, 'NoticeId' : index}
+        return {compareNotices.__name__ : allMatched, 'NoticeId' : index}
         
     except Exception as error:
-        logging.error(f"{compare_notices.__name__}: {str(error)}")
+        logging.error(f"{compareNotices.__name__}: {str(error)}")
         
-async def process_notices(scraped_data: dict) -> dict:
-    total_notices = NoticesCollection.count_documents({})
-    if total_notices == 0:
-        create_result = await create_notices(scraped_data)
-        return create_result
+async def processNotices(scapedData: dict) -> dict:
+    totalNotices = noticesCollection.count_documents({})
+    if totalNotices == 0:
+        createResult = await createNotices(scapedData)
+        messageToSend = createResult['NoticeId']
+        return messageToSend
     
-    elif total_notices == 10:
-        compare_result = await compare_notices(scraped_data)
-        all_matched, total_new_message = compare_result['compare_notices'], compare_result['NoticeId']
-        if not all_matched:
-            await update_notices(10, scraped_data)
-                
-        return total_new_message if not all_matched else 0 #Sen
+    elif totalNotices == 10:
+        compareResult = await compareNotices(scapedData)
+        allMatched, totalMessages = compareResult['compareNotices'], compareResult['NoticeId']
+        if not allMatched:
+            await updateNotices(10, scapedData)    
+        messageToSend = totalMessages if not allMatched else 0         
+        return messageToSend
     else:
         logging.error(f'Duplicate data in the Document')
         
-async def get_notices(index: int):
-    notice_db_info = NoticesCollection.find_one(
+async def getNotices(index: int) -> dict:
+    noticeData = noticesCollection.find_one(
     {"NoticeId" : index}, 
-    {'_id' : 0, 'NoticeId' : 1, 'Title' : 1, 'Publish_by' : 1, 'Date': 1}
+    {'_id' : 0, 'NoticeId' : 1, 'Title' : 1, 'Date': 1, 'Published_By' : 1}
 )
-    return notice_db_info
+    return noticeData

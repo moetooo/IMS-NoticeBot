@@ -7,7 +7,7 @@ WHATSAPP_NO: int = getenv('WHATSAPP_NO')
 COUNTRY_CODE: str = getenv('COUNTRY_CODE')
 TOKEN: str = getenv('TOKEN')
 CHAT_ID: int = getenv('CHAT_ID')
-GROUP_NAME: str = getenv('GROUP_NAME')
+CHAT_NAME: str = getenv('CHAT_NAME')
 IS_QR: bool = getenv('IS_QR', False)
 PORT: int = getenv('PORT', 8010)
 

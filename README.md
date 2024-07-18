@@ -1,11 +1,10 @@
 # IMS-NoticeBot
 
-An automated system for sending IMS (Information Management System) notices using Python and Playwright.
+An automated system for sending IMS (Information Management System) notices to Whatsapp using Python.
 
 ## Description
 
-This project automates the process of retrieving notices from an IMS and sending them through a messaging platform (likely WhatsApp, based on previous context). It utilizes web scraping techniques to gather information and automates the sending process.
-
+The IMS Notice Scraper Bot is a powerful and efficient tool designed to automate the process of scraping notices from the IMS (Institute Management System) portal and sending them directly to a specified WhatsApp chat. This bot is ideal for students who want to stay updated with the latest announcements without having to manually check the IMS portal regularly.
 
 ## Features
 
@@ -14,21 +13,30 @@ This project automates the process of retrieving notices from an IMS and sending
 - Sends notifications via WhatsApp and Telegram for logs.
 
 ## DISCLAIMER
-- Using this bot with your personal account may lead to suspension. It is not recommended.
+
+- USING THIS BOT WITH YOUR PERSONAL NUMBER MAY LEAD TO SUSPENSION. IT IS NOT RECOMMENDED.
 
 ## Installation
 
-### Locally
+   - Using python
    ```
    git clone https://github.com/moetooo/IMS-NoticeBot.git 
    cd IMS-NoticeBot 
    pip3 install -r requirements.txt
    playwright install chromium
    playwright install-deps
-   python3 main.py or chmod +x start.sh && ./start.sh
+   python3 main.py
    ```
 
-### Using Docker
+  - Using Bash script
+   ```
+   git clone https://github.com/moetooo/IMS-NoticeBot.git 
+   cd IMS-NoticeBot 
+   chmod +x start.sh
+   ./start.sh or bash start.sh
+   ```
+   
+   - Using Docker
    ```
    sudo docker build -t build imsbot
    sudo docker run -p 8010:8010 imsbot
@@ -48,12 +56,8 @@ GROUP_NAME=<your_group_name>
 IS_QR=<whether_qr_code_is_used> False by Default
 PORT=<port_number> 8010 by Default
 ```
-## Screenshots
-
-![LOG Screenshot]()
 
 ## Code Reference
-- https://github.com/microsoft/playwright-python/issues/675
-- https://www.way2automation.com/download-a-file-using-playwright-python/
+- https://github.com/microsoft/playwright-python/issues/675#issuecomment-841667109
 - https://github.com/mridultuteja/BOT-for-Discord-using-python/blob/master/keep_alive.py
 - Also used Chatgpt and Claude 
