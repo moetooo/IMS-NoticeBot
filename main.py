@@ -13,6 +13,13 @@ logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(levelname)s : %(message)s',  
                     datefmt='[%Y-%m-%d | %H:%M:%S]')
 
+
+
+'''
+BEFORE SENDING WHATSAPP MESSAGES CHECKS IF PAGE IS ALIVE OR NOT
+
+'''
+
 #=======VARS==========#
 countryCode = COUNTRY_CODE
 chatName = CHAT_NAME
@@ -211,36 +218,35 @@ async def sendMessage(chatPage: Page, savedPdfDocuments: dict) -> None:
     except Exception as error:
         logging.error(f'{sendMessage.__name__}: {str(error)}')
 
-async def scraperTask(context: BrowserContext, whatsappPage: Page, url: str, retryCount: int = 3) -> None:
-    for count in range(retryCount):
-        try:
-            noticePage = await context.new_page()
-            logging.info(f'Attempt {count + 1}/{retryCount}: Checking for New Notices')
-            await send_telegram_message(f'Attempt {count + 1}/{retryCount}: Checking for New Notices')
+async def scraperTask(context: BrowserContext, whatsappPage: Page, url: str) -> None:
+    try:
+        noticePage = await context.new_page()
+        logging.info('Checking for New Notices')
+        await send_telegram_message('Checking for New Notices')
+        
+        scrapResult = await runScraper(noticePage, url)
+        
+        if isinstance(scrapResult, dict):
+            totalNotices = len(scrapResult)
+            logging.info(f'{totalNotices} New Notices Found!')        
+            await send_telegram_message(f'{totalNotices} New Notices Found!')
+            await sendMessage(whatsappPage, scrapResult)
             
-            scrapResult = await runScraper(noticePage, url)
-            
-            if isinstance(scrapResult, dict):
-                totalNotices = len(scrapResult)
-                logging.info(f'{totalNotices} New Notices Found!')        
-                await send_telegram_message(f'{totalNotices} New Notices Found!')
-                await sendMessage(whatsappPage, scrapResult)
-                
-            elif isinstance(scrapResult, int):
-                logging.info('Notices are up to date')
-                await send_telegram_message('Notices are up to date')
-            else:
-                logging.warning(f'Unexpected scraping result type: {type(scrapResult)}')
-        
-        except Exception as error:
-            logging.error(f'{scraperTask.__name__}: {str(error)}')
-        
-        finally:
-            await noticePage.close()
-        
-        logging.info('Sleeping for 600 seconds')
-        await send_telegram_message('Sleeping for 600 seconds')
-        await asyncio.sleep(600)
+        elif isinstance(scrapResult, int):
+            logging.info('Notices are up to date')
+            await send_telegram_message('Notices are up to date')
+        else:
+            logging.warning(f'Unexpected scraping result type: {type(scrapResult)}')
+    
+    except Exception as error:
+        logging.error(f'{scraperTask.__name__}: {str(error)}')
+    
+    finally:
+        await noticePage.close()
+    
+    logging.info('Sleeping for 1200 seconds')
+    await send_telegram_message('Sleeping for 1200 seconds')
+    await asyncio.sleep(1200)
         
 async def keepWhatsappActive(page: Page) -> bool:
     try:
