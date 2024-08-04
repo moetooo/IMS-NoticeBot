@@ -1,24 +1,17 @@
-from playwright.async_api import  async_playwright, Page, BrowserContext
+from playwright.async_api import  async_playwright, Page
 from keep_alive import keep_alive
 from database import getNotices
 from scrap import runScraper
-from config import *
+from config import * 
 import asyncio
 import logging
 import aiohttp
 import asyncio
+import random
 import os
-
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(levelname)s : %(message)s',  
                     datefmt='[%Y-%m-%d | %H:%M:%S]')
-
-
-
-'''
-BEFORE SENDING WHATSAPP MESSAGES CHECKS IF PAGE IS ALIVE OR NOT
-
-'''
 
 #=======VARS==========#
 countryCode = COUNTRY_CODE
@@ -27,7 +20,6 @@ phoneNo = WHATSAPP_NO
 chatId = CHAT_ID
 token = TOKEN
 isQRCode = IS_QR
-delay = 10
 #=====================#
 
 #========XPATHS========#
@@ -41,10 +33,10 @@ replyButton = REPLY_BTN
 #====================#
 
 #========FILTERS=========#
-excludedDegrees = ['MTech', 'BBA', 'MBA', 'M.Tech', 'B.Arch', 'BARCH', 'M TECH']
-includedDegrees = ['BTECH', 'B.Tech', 'B Tech', 'B TECH']
+excludedText = ['MTech', 'BBA', 'MBA', 'M.Tech', 'B.Arch', 'BARCH', 'M TECH', 'West', 'East', 'M.Sc', 'Ph. D.', 'Ph.D', 'NCC']
+includedText = ['BTECH', 'B.Tech', 'B Tech', 'B TECH']
 #========================#
-
+            
 async def send_telegram_message(text: str) -> None:
     formattedText = f"`{text}`"
     url = f"https://api.telegram.org/bot{token}/sendMessage?chat_id={chatId}&text={formattedText}&parse_mode=MarkdownV2"
@@ -55,17 +47,16 @@ async def send_telegram_message(text: str) -> None:
                 
 async def filterDegrees(title: str) -> bool:
     matchFound = False
-    for exDegree in excludedDegrees:
+    for exDegree in excludedText:
         if exDegree.lower() in title.lower():
             matchFound = True
             break
         
-    for inDegree in includedDegrees:
+    for inDegree in includedText:
         if inDegree.lower() in title.lower():
             matchFound = False
             break
-                
-    return matchFound    
+    return matchFound  
 
 async def fetchLoginCode(loginPage: Page, retryCount: int = 3) -> str:
     for count in range(retryCount):
@@ -86,18 +77,24 @@ async def fetchLoginCode(loginPage: Page, retryCount: int = 3) -> str:
         if count < retryCount - 1:
             logging.info('Code not found. Waiting before next attempt...')
             await send_telegram_message('Code not found. Waiting before next attempt...')
-            await asyncio.sleep(delay)
+            await asyncio.sleep(10)
     
     logging.warning('Failed to find login code after all attempts')
     return None
 
-async def login(context: BrowserContext, url: str) -> Page:
+#===================LOGIN-FUNCTION========================#
+async def login(loginPage: Page, url: str) -> Page:   
     try:
-        loginPage = await context.new_page()
         logging.info(f'GET {url}')
         await send_telegram_message(f'GET {url}')
-        await loginPage.goto(url, wait_until="networkidle", timeout=120000)
+        await loginPage.goto(url, wait_until="load", timeout=120000)
         
+        await asyncio.sleep(60)
+                
+        searchBox = loginPage.locator(searchBoxPath)
+        if await searchBox.count() > 0:
+            return loginPage
+    
         if isQRCode:
             logging.info('SCAN QR code')
         
@@ -105,12 +102,10 @@ async def login(context: BrowserContext, url: str) -> Page:
             logging.info('Logging in using phone number')
             await send_telegram_message('Logging in using phone number')
             
-            await asyncio.sleep(60)
-                        
             await loginPage.wait_for_selector('xpath=//span[@role="button" and text()="Link with phone number"]', state='visible', timeout=60000)
-            await loginPage.locator('xpath=//span[@role="button" and text()="Link with phone number"]').dblclick()
+            await loginPage.locator('xpath=//span[@role="button" and text()="Link with phone number"]').click()
 
-            await asyncio.sleep(delay)
+            await asyncio.sleep(10)
             
             await loginPage.locator('xpath=//*[@id="app"]/div/div[2]/div[3]/div[1]/div/div[3]/div[1]/div[1]/button/div/div/div').click()
             await loginPage.locator('xpath=//*[@id="wa-popovers-bucket"]/div/div[2]/div/div[1]/div/div[2]/div[1]/p').click()
@@ -128,7 +123,7 @@ async def login(context: BrowserContext, url: str) -> Page:
             await loginPage.locator('xpath=//*[@id="app"]/div/div[2]/div[3]/div[1]/div/div[3]/div[2]/button/div/div').click()
             
             logging.info('Phone no entered')            
-            await asyncio.sleep(delay)
+            await asyncio.sleep(10)
 
             loginCode = await fetchLoginCode(loginPage)
             await asyncio.sleep(5)
@@ -142,95 +137,146 @@ async def login(context: BrowserContext, url: str) -> Page:
         return loginPage
     except Exception as error:
         logging.error(f'{login.__name__}: {str(error)}')
+#======================================================#
 
-async def sendMessage(chatPage: Page, savedPdfDocuments: dict) -> None:
+#=================MESSAGE-FUNCTION=================#        
+async def openChat(chatPage: Page, chatName: str) -> None:
+    await asyncio.sleep(10)
+    await chatPage.locator(f'xpath={searchBoxPath}').click()
+    await chatPage.keyboard.press('Control+a')
+    await chatPage.keyboard.press('Backspace')
+    await chatPage.keyboard.type(chatName)
+    await chatPage.get_by_title(chatName, exact=True).click()
+    await asyncio.sleep(10)
+    
+    
+async def sendText(chatPage: Page, message: str) -> None:
+    await chatPage.locator('xpath=//div[@contenteditable="true" and @data-lexical-editor="true" and @aria-label="Type a message"]').click()
+    await chatPage.keyboard.insert_text(message)
+    await chatPage.locator(f'xpath={sendButton}').click()
+    
+    
+async def sendAttachment(chatPage: Page, filePath: str)-> None:
+    await chatPage.locator(f'xpath={attachButton}').click()
+    await asyncio.sleep(5)
+    await chatPage.set_input_files(f'xpath={fileInputPath}', filePath)
+    await asyncio.sleep(10)
+
+    captionInput = chatPage.locator(captionPath)        
+    if await captionInput.is_visible():
+        captionBlankTxt = '⠀'
+        await captionInput.click()
+        await captionInput.fill(captionBlankTxt, force=True)
+        
+    await asyncio.sleep(5)
+    await chatPage.locator(f'xpath={sendButton}').click()
+    await asyncio.sleep(30)
+    
+    if filePath and os.path.exists(filePath):
+        os.remove(filePath)
+
+
+async def replyToLastMessage(chatPage: Page, lastMessageId: str, fileContent: str | None) -> bool:
+    if not fileContent:
+        return False
+    
+    filePath = os.path.join(os.getcwd(), 'downloads', fileContent)
     try:
-        await asyncio.sleep(delay)
-                
-        await chatPage.locator(f'xpath={searchBoxPath}').click()
-        await chatPage.keyboard.type(chatName)
-        await chatPage.get_by_title(chatName, exact=True).click()
-        
-        await asyncio.sleep(delay)
-        
-        totalMessages = len(savedPdfDocuments)
-        for messageNo in range(totalMessages, 0, -1):
-            noticeData = await getNotices(messageNo)
-            title, date, publishedBy  = noticeData['Title'], noticeData['Date'], noticeData['Published_By']            
-            skipMessage = await filterDegrees(title)
-            
-            fileName = savedPdfDocuments[messageNo]
-            currentDir = os.getcwd()
-            filePath = os.path.join(currentDir, 'downloads', fileName)
-            
-            if not skipMessage:
-                messageContent = f'''
-                🔔NOTICE: *{title}*\n\n🗓️ Date: {date}\n\n✍️ Published by: {publishedBy}
-                '''
-                await chatPage.locator('xpath=//div[@contenteditable="true" and @data-lexical-editor="true" and @aria-label="Type a message"]').click()
-                await chatPage.keyboard.insert_text(messageContent)
-                await chatPage.locator(f'xpath={sendButton}').click()
-                
-                await asyncio.sleep(15)
-                
-                await chatPage.wait_for_selector('div[data-id]')
-                elementDataId = await chatPage.query_selector_all('div[data-id]')
-                lastMessageId = 0
-                if elementDataId:
-                    lastMessageId = await elementDataId[-1].get_attribute('data-id')
-                            
-                await chatPage.locator(f'div[data-id="{lastMessageId}"]').hover()
-                downContextButton = await chatPage.locator(downContextPath).is_visible()
-                if downContextButton:
-                    await chatPage.locator(downContextPath).click()
-                    await asyncio.sleep(5)
-                    await chatPage.locator(replyButton).click()
-                
-                await asyncio.sleep(5)    
-                
-                await chatPage.locator(f'xpath={attachButton}').click()
-
-                await asyncio.sleep(15)
-                            
-                await chatPage.set_input_files(f'xpath={fileInputPath}', filePath)
-                
-                await asyncio.sleep(delay)
-                
-                captionInput = chatPage.locator(captionPath)        
-                if await captionInput.is_visible():
-                    captionBlankTxt = '⠀'
-                    await captionInput.click()
-                    await captionInput.fill(captionBlankTxt, force=True)
-                    
-                await asyncio.sleep(5)
-                
-                await chatPage.locator(f'xpath={sendButton}').click()
-                
-                await asyncio.sleep(30)
-                
-                logging.info(f'MessageNo.{messageNo} sent.')
-
-            else:
-                logging.info(f'Skipping MessageNo.{messageNo}')
-                
-            os.remove(filePath)
-            
+        await asyncio.sleep(5)
+        await chatPage.locator(f'div[data-id="{lastMessageId}"]').hover()
+        downContextButton = await chatPage.locator(downContextPath).is_visible(timeout=5000)
+        if downContextButton:
+            await chatPage.locator(downContextPath).click()
+            await asyncio.sleep(5)
+            await chatPage.locator(replyButton).click()
+            await asyncio.sleep(5)
+            await sendAttachment(chatPage, filePath)
+    
     except Exception as error:
-        logging.error(f'{sendMessage.__name__}: {str(error)}')
+        logging.warning(f"Hover and context menu actions failed: {str(error)}. Trying fallback method.")
+        await sendAttachment(chatPage, filePath)
+            
+    return True    
+    
+async def getLastMessage(chatPage: Page) -> int:
+    await chatPage.wait_for_selector('div[data-id]')
+    elementDataId = await chatPage.query_selector_all('div[data-id]')
+    lastMessageId = 0
+    if elementDataId:
+        lastMessageId = await elementDataId[-1].get_attribute('data-id')
+    return lastMessageId
 
-async def scraperTask(context: BrowserContext, whatsappPage: Page, url: str) -> None:
+async def isMessageDelivered(chatPage: Page, lastMessageId: str) -> bool:
+    maxDeliveryWait = 400  
+    deliveryCheckInterval = 5
+    isDelivered = False  
+    for _ in range(0, maxDeliveryWait, deliveryCheckInterval):
+        dblCheckIcon = chatPage.locator(f'div[data-id="{lastMessageId}"] span[data-icon="msg-dblcheck"]')
+        msgCheckIcon = chatPage.locator(f'div[data-id="{lastMessageId}"] span[data-icon="msg-check"]')
+        
+        if await dblCheckIcon.count() > 0 or await msgCheckIcon.count() > 0:
+            isDelivered = True
+            break
+        await asyncio.sleep(deliveryCheckInterval)
+    return isDelivered
+
+async def sendMessageToWhatsapp(chatPage: Page, savedPdfDocuments: dict) -> None:
     try:
-        noticePage = await context.new_page()
+        await openChat(chatPage, chatName)
+        messageCount = len(savedPdfDocuments)
+        for messageNo in sorted(savedPdfDocuments.keys(), reverse=True):
+            noticeContent = await getNotices(messageNo)
+            noticeTitle = noticeContent['Title']
+            noticeDate = noticeContent['Date']
+            noticePublishedBy = noticeContent['Published_By']
+            fileContent = savedPdfDocuments[messageNo]
+            
+            if await filterDegrees(noticeTitle):
+                logging.info(f'Skipping MessageNo.{messageCount}')
+                await send_telegram_message(f'Skipping MessageNo.{messageCount}')
+                messageCount -= 1
+                continue
+            
+            messageContent = f'''
+            🔔NOTICE: *{noticeTitle}*\n\n🗓️ Date: {noticeDate}\n\n✍️ Published by: {noticePublishedBy}
+            '''
+            
+            if fileContent and '.pdf' not in fileContent:
+                attachmentUrlContent = f'\n{fileContent}'
+                await sendText(chatPage, messageContent + attachmentUrlContent)
+                logging.info(f'MessageNo.{messageCount} sent')
+                await send_telegram_message(f'MessageNo.{messageCount} sent')
+                messageCount -= 1
+                continue
+
+            await sendText(chatPage, messageContent)
+                
+            lastMessageId = await getLastMessage(chatPage)
+
+            if await isMessageDelivered(chatPage, lastMessageId):
+                if await replyToLastMessage(chatPage, lastMessageId, fileContent):
+                    lastUploadMessageId = await getLastMessage(chatPage)
+                    
+                    if await isMessageDelivered(chatPage, lastUploadMessageId):
+                        logging.info(f'MessageNo.{messageCount} sent')
+                        await send_telegram_message(f'MessageNo.{messageCount} sent')
+            
+            messageCount -= 1
+
+    except Exception as error:
+        logging.error(f'{sendMessageToWhatsapp.__name__}: {str(error)}')
+#============================================================# 
+
+async def scraperTask(noticePage: Page, whatsappPage: Page, url: str) -> None:    
+    try:
         logging.info('Checking for New Notices')
         await send_telegram_message('Checking for New Notices')
         
         scrapResult = await runScraper(noticePage, url)
-        
         if isinstance(scrapResult, dict):
-            totalNotices = len(scrapResult)
-            logging.info(f'{totalNotices} New Notices Found!')        
-            await send_telegram_message(f'{totalNotices} New Notices Found!')
-            await sendMessage(whatsappPage, scrapResult)
+            logging.info(f'{len(scrapResult)} New Notices Found!')        
+            await send_telegram_message(f'{len(scrapResult)} New Notices Found!')
+            await sendMessageToWhatsapp(whatsappPage, scrapResult)
             
         elif isinstance(scrapResult, int):
             logging.info('Notices are up to date')
@@ -243,58 +289,78 @@ async def scraperTask(context: BrowserContext, whatsappPage: Page, url: str) -> 
     
     finally:
         await noticePage.close()
+    logging.info('Sleeping for 900 seconds')
+    await send_telegram_message('Sleeping for 900 seconds')
+    await asyncio.sleep(900)
     
-    logging.info('Sleeping for 1200 seconds')
-    await send_telegram_message('Sleeping for 1200 seconds')
-    await asyncio.sleep(1200)
-        
 async def keepWhatsappActive(page: Page) -> bool:
     try:
         searchBox = page.locator(searchBoxPath)
-        sessionClosed = True
-        if await searchBox.count() > 0:
-            await searchBox.focus()
-            sessionClosed = False
+        if await searchBox.is_visible(timeout=5000):
+            await searchBox.click()
+            await asyncio.sleep(10)
             logging.info("WhatsApp session is active")
             await send_telegram_message("WhatsApp session is active")
-        else:
-            logging.warning("Could not find WhatsApp search box. Session might be logged out.")
-            await send_telegram_message("Could not find WhatsApp search box. Session might be logged out.")
-                
-        return sessionClosed
+        return False
+            
     except Exception as e:
         logging.error(f'{keepWhatsappActive.__name__}: {str(e)}')
+        return True  
 
 async def main():
-    logging.info('Bot Started')
-    await asyncio.sleep(20)
-    async with async_playwright() as playwright:
-        browser = await playwright.chromium.launch(headless=True)
-        try:            
-            donwloadPath = os.path.join(os.getcwd(), "downloads")
-            if not os.path.exists(donwloadPath):
-                os.makedirs(donwloadPath)
-                logging.info('Download directory created successfully')
+    while True:
+        try:
+            logging.info('Bot Started')
+            await asyncio.sleep(20)
+
+            userDir = os.path.join(os.getcwd(), 'user_data')
+            if not os.path.exists(userDir):
+                os.makedirs(userDir)
             
-            context = await browser.new_context(
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-            )
-            context.set_default_navigation_timeout(900_000)  # 15 mins
-            context.set_default_timeout(900_000)  # 15 mins
-            whatsappPage = await login(context, url='https://web.whatsapp.com/')
+            async with async_playwright() as playwright:       
+                browser = await playwright.chromium.launch_persistent_context(
+                    user_data_dir=userDir,
+                    user_agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                    headless=True,
+                    args=[
+                        '--no-sandbox',
+                        '--disable-setuid-sandbox',
+                        '--disable-dev-shm-usage',
+                        '--disable-accelerated-2d-canvas',
+                        '--no-first-run',
+                        '--no-zygote',
+                        '--single-process',
+                        '--disable-gpu'
+                    ]
+                )
+                try:
+                    browser.set_default_navigation_timeout(300_000)  # 5 minutes
+                    browser.set_default_timeout(300_000)  # 5 minutes
             
-            if whatsappPage is not None:
-                while True:
-                    isSessionClosed = await keepWhatsappActive(whatsappPage)
-                    if isSessionClosed:
-                        break
-                    await scraperTask(context, whatsappPage, url='https://www.imsnsit.org/imsnsit/notifications.php')
-                
-        except Exception as error:
-            logging.error(f'{main.__name__}: {str(error)}')
-        finally:
-            await browser.close()
-            logging.info("Browser closed. Script finished.")
+                    whatsappPage = await browser.new_page()
+                    if len(browser.pages) > 0:
+                        await browser.pages[0].close()
+        
+                    chatPage = await login(whatsappPage, url='https://web.whatsapp.com/')
+                    if chatPage is not None:
+                        while True:
+                            isSessionClosed = await keepWhatsappActive(chatPage)
+                            if not isSessionClosed:
+                                for _ in range(3):
+                                    noticePage = await browser.new_page()
+                                    await scraperTask(noticePage, whatsappPage, url='https://www.imsnsit.org/imsnsit/notifications.php')
+                    
+                            await asyncio.sleep(30)
+                except Exception as error:
+                    logging.error(f'{main.__name__}: {str(error)}')
+                finally:
+                    await browser.close()
+                    logging.info("Browser context closed. Attempting to restart.")
+                    
+        except Exception as outer_error:
+            logging.error(f'Outer exception in {main.__name__}: {str(outer_error)}')
+            logging.info("Restarting main function in 60 seconds...")
+            await asyncio.sleep(60)
 
 if __name__ == '__main__':
     keep_alive()

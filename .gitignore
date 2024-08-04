@@ -2,3 +2,5 @@ __pycache__
 downloads
 .venv
 *.env
+userdata
+user_data

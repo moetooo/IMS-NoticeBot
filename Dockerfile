@@ -6,7 +6,7 @@ COPY . .
 
 RUN pip3 install --no-cache-dir -r requirements.txt
 
-RUN playwright install chromium && playwright install-deps
+RUN playwright install --with-deps chromium 
 
 EXPOSE ${PORT}
 
