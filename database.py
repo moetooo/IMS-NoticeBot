@@ -10,7 +10,7 @@ logging.basicConfig(level=logging.INFO,
 collectionUrl = DB_URL
 
 client = pymongo.MongoClient(collectionUrl)
-database = client.get_database('whatsapp_bot_db')
+database = client.get_database('test_db')
 noticesCollection = database.get_collection('notices') 
 if noticesCollection is None:
     noticesCollection = database['notices']

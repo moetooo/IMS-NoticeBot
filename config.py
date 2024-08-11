@@ -2,20 +2,23 @@ from dotenv import load_dotenv
 from os import getenv
 
 load_dotenv()
-DB_URL: str = getenv('DB_URL')
+
 WHATSAPP_NO: int = getenv('WHATSAPP_NO')
 COUNTRY_CODE: str = getenv('COUNTRY_CODE')
+DB_URL: str = getenv('DB_URL')
 TOKEN: str = getenv('TOKEN')
-CHAT_ID: int = getenv('CHAT_ID')
-CHAT_NAME: str = getenv('CHAT_NAME')
-IS_QR: bool = getenv('IS_QR', False)
+LOG_CHAT_ID: int = getenv('LOG_CHAT_ID')
+CHAT_NAME_1: str = getenv('CHAT_NAME_1')
+CHAT_NAME_2: str = getenv('CHAT_NAME_2')
+CHAT_NAME_3: str = getenv('CHAT_NAME_3')
 PORT: int = getenv('PORT', 8010)
+IS_QR: bool = getenv('IS_QR', False)
 
 #======================================#
+ATTACH_BTN = '//div[@title="Attach"]'
+CAPTION_AREA = 'div[role="textbox"][aria-label="Add a caption"]'
+DOWN_CONTEXT_BTN = '[data-icon="down-context"]'
+FILE_UPLOAD = '//input[@accept="image/*,video/mp4,video/3gpp,video/quicktime"]'
+REPLY_BTN = 'div[role="button"][aria-label="Reply"]'
 SEARCH_BOX = '//div[@contenteditable="true" and @data-tab="3"]'
 SEND_BTN = '//span[@data-icon="send"]'
-ATTACH_BTN = '//div[@title="Attach"]'
-DOWN_CONTEXT_BTN = '[data-icon="down-context"]'
-REPLY_BTN = 'div[role="button"][aria-label="Reply"]'
-CAPTION_AREA = 'div[role="textbox"][aria-label="Add a caption"]'
-FILE_UPLOAD = '//input[@accept="image/*,video/mp4,video/3gpp,video/quicktime"]'
