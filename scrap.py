@@ -1,5 +1,5 @@
 from playwright.async_api import Page, async_playwright
-from database import processNotices
+from database import process_notices
 import asyncio
 import logging
 import os
@@ -7,120 +7,119 @@ logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(levelname)s : %(message)s',  
                     datefmt='[%Y-%m-%d | %H:%M:%S]') 
 
-specialChars = [
+special_chars = [
     "#", "%", "&", "{", "}", "\\", "<", ">", "*", "?", "/", "$", "!", "'", '"',
     ":", "@", "+", "`", "|", "=", "[", "]"
 ]
 
-async def processData(notices: list[str], publish: list[str], dates:list[str]) -> dict:
-    formattedData = {}
+async def process_data(notices: list[str], publish: list[str], dates:list[str]) -> dict:
+    formatted_data = {}
     for i in range(1, 11):
-        formattedData[i] = [notices[i - 1], dates[i - 1], publish[i - 1]]
-    return formattedData
+        formatted_data[i] = [notices[i - 1], dates[i - 1], publish[i - 1]]
+    return formatted_data
 
-async def filterTitle(title: str) -> str:
-    for char in specialChars:
+async def filter_title(title: str) -> str:
+    for char in special_chars:
         title = title.replace(char, "")
     return title
         
-async def downloadPdfs(page: Page, noticeData: dict) -> dict:
+async def download_pdf(page: Page, notice_data: dict) -> dict:
     try:
         filenames = {}    
-        for noticeId in noticeData.keys():
-            elementId = 2 * noticeId + 2
-            baseXpath = f'/html/body/form/table/tbody/tr[{elementId}]'
-            titleWithUrl = page.locator(f'xpath={baseXpath}/td[2]/a')
-            titleWithoutUrl = page.locator(f'xpath={baseXpath}/td[2]/b')
+        for notice_id in notice_data.keys():
+            element_id = 2 * notice_id + 2
+            base_path = f'/html/body/form/table/tbody/tr[{element_id}]'
+            title_with_url = page.locator(f'xpath={base_path}/td[2]/a')
+            title_without_url = page.locator(f'xpath={base_path}/td[2]/b')
             
-            if await titleWithUrl.count() > 0:
-                noticeUrl = await titleWithUrl.get_attribute('href')
-                if 'plum_url.php' in noticeUrl:
-                    fetchedTitle = await titleWithUrl.inner_text()
-                    title = await filterTitle(fetchedTitle)
+            if await title_with_url.count() > 0:
+                notice_url = await title_with_url.get_attribute('href')
+                if 'plum_url.php' in notice_url:
+                    fetched_title = await title_with_url.inner_text()
+                    title = await filter_title(fetched_title)
                     async with page.expect_download() as download_info:            
-                        donwload_file_element = page.locator(f'xpath={baseXpath}/td[2]/a')
+                        donwload_file_element = page.locator(f'xpath={base_path}/td[2]/a')
                         await donwload_file_element.click(modifiers=["Alt", ])
                         
-                    currentDir = fr'{os.getcwd()}\downloads'
                     filename = f'{title}.pdf'
-                    filePath = os.path.join(currentDir, filename)
+                    filePath = os.path.join(os.getcwd(),'downloads', filename)
                     download = await download_info.value
                     
                     await download.save_as(filePath)
-                    filenames.update({noticeId : filePath})
+                    filenames.update({notice_id : filePath})
                 else:
-                    filenames.update({noticeId : noticeUrl})
+                    filenames.update({notice_id : notice_url})
                 
-            elif await titleWithoutUrl.count() > 0:
-                filenames.update({noticeId : None})
+            elif await title_without_url.count() > 0:
+                filenames.update({notice_id : None})
                 
         return filenames
         
     except Exception as error:
-        logging.error(f'{downloadPdfs.__name__}: {error}')
+        logging.error(f'{download_pdf.__name__}: {error}')
 
-async def scrapNotices(page: Page, url: str) -> dict:
+async def scrap_notices(page: Page, url: str) -> dict:
     try:
         await page.goto(url, wait_until="networkidle", timeout=120000)
         logging.info(f'GET {url}')
                 
-        noticesList = []
-        publishedByList = []
-        datesList = []
+        notice_list = []
+        published_by_list = []
+        date_list = []
         tasks = [] 
         results = []    
         
         for index in range(1, 11):#MAX 10 NOTICES
             Id = 2 * index + 2
-            baseXpath = f'/html/body/form/table/tbody/tr[{Id}]'
-            titleWithUrl = page.locator(f'xpath={baseXpath}/td[2]/a')
-            titleWithoutUrl = page.locator(f'xpath={baseXpath}/td[2]/b')
+            base_path = f'/html/body/form/table/tbody/tr[{Id}]'
+            title_with_url = page.locator(f'xpath={base_path}/td[2]/a')
+            title_without_url = page.locator(f'xpath={base_path}/td[2]/b')
             
-            if await titleWithUrl.count() > 0:#Notices with url
-                date = page.locator(f'xpath=({baseXpath})/td[1]/font')
-                publishedBy = page.locator(f'xpath={baseXpath}/td[2]/font/b')
+            if await title_with_url.count() > 0:#Notices with url
+                date = page.locator(f'xpath=({base_path})/td[1]/font')
+                published_by = page.locator(f'xpath={base_path}/td[2]/font/b')
                 
-                tasks = [titleWithUrl.inner_text(),publishedBy.inner_text(), date.inner_text()]
+                tasks = [title_with_url.inner_text(),published_by.inner_text(), date.inner_text()]
                 results = await asyncio.gather(*tasks)
                 
-            elif await titleWithoutUrl.count() > 0:#Notices without url
-                textData = await titleWithoutUrl.inner_text()
-                publishedDataIndex = textData.find('Published')
-                if publishedDataIndex != -1:
-                    title = str(textData[:publishedDataIndex]).strip()
-                    publishedBy = str(textData[publishedDataIndex:]).strip()
-                    date = page.locator(f'xpath=({baseXpath})/td[1]/font')
+            elif await title_without_url.count() > 0:#Notices without url
+                textData = await title_without_url.inner_text()
+                published_data_index = textData.find('Published')
+                if published_data_index != -1:
+                    title = str(textData[:published_data_index]).strip()
+                    published_by = str(textData[published_data_index:]).strip()
+                    date = page.locator(f'xpath=({base_path})/td[1]/font')
                     date = await date.inner_text()
                     
-                    results = [title,publishedBy, date]
+                    results = [title,published_by, date]
     
-            fetchNotice = results[0].replace(":", "")
-            fetchPublishedBy = results[1].replace("Published By: ", "").strip()
-            fetchDate = results[2].strip()
+            fetched_notice = results[0].replace(":", "")
+            fetched_published_by = results[1].replace("Published By: ", "").strip()
+            fetched_date = results[2].strip()
 
-            noticesList.append(fetchNotice)
-            publishedByList.append(fetchPublishedBy)
-            datesList.append(fetchDate)
+            notice_list.append(fetched_notice)
+            published_by_list.append(fetched_published_by)
+            date_list.append(fetched_date)
             
             Id += 2
             
-        formattedData = await processData(noticesList, publishedByList, datesList)
-        return formattedData
+        formatted_data = await process_data(notice_list, published_by_list, date_list)
+        return formatted_data
 
     except Exception as error:
-        logging.error(f'{scrapNotices.__name__}: {error}')
+        logging.error(f'{scrap_notices.__name__}: {error}')
     
-async def runScraper(noticePage: Page, url: str) -> dict | int:
+async def run_scraper(notice_page: Page, url: str) -> dict | int:
     try:
-        scrapedNotices = await scrapNotices(noticePage, url)
-        totalMessages = await processNotices(scrapedNotices)
+        scraped_notices = await scrap_notices(notice_page, url)
+        total_messages = await process_notices(scraped_notices)
         filenames = 0 
-        if len(totalMessages) > 0 and len(totalMessages) <= 10:
-            filenames = await downloadPdfs(noticePage, totalMessages)        
+        if len(total_messages) > 0 and len(total_messages) <= 10:
+            filenames = await download_pdf(notice_page, total_messages)        
         return filenames
 
     except Exception as error:
-        logging.error(f"{runScraper.__name__}: {str(error)}")
+        logging.error(f"{run_scraper.__name__}: {str(error)}")
 
     finally:
-        await noticePage.close()
+        await notice_page.close()

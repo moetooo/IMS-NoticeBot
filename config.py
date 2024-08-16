@@ -3,14 +3,14 @@ from os import getenv
 
 load_dotenv()
 
-WHATSAPP_NO: int = getenv('WHATSAPP_NO')
-COUNTRY_CODE: str = getenv('COUNTRY_CODE')
+WHATSAPP_NO: int = getenv('WHATSAPP_NO', 0)
+COUNTRY_CODE: str = getenv('COUNTRY_CODE', None)
 DB_URL: str = getenv('DB_URL')
 TOKEN: str = getenv('TOKEN')
 LOG_CHAT_ID: int = getenv('LOG_CHAT_ID')
-CHAT_NAME_1: str = getenv('CHAT_NAME_1')
-CHAT_NAME_2: str = getenv('CHAT_NAME_2')
-CHAT_NAME_3: str = getenv('CHAT_NAME_3')
+CHAT_NAME_1: str = getenv('CHAT_NAME_1', None)
+CHAT_NAME_2: str = getenv('CHAT_NAME_2', None)
+CHAT_NAME_3: str = getenv('CHAT_NAME_3', None)
 PORT: int = getenv('PORT', 8010)
 IS_QR: bool = getenv('IS_QR', False)
 
