@@ -89,7 +89,11 @@ async def get_qr(login_page: Page) -> None:
     qr_element = await login_page.wait_for_selector("div[data-ref]", timeout=60000)
 
     value = await qr_element.get_attribute("data-ref")
-    qr_image_path = os.path.join(os.getcwd(),"server" ,"static", "qr.png")
+    dir_path = os.path.join(os.getcwd(),"server" ,"static")
+    if not os.path.exists(dir_path):
+        os.mkdir(dir_path)
+    
+    qr_image_path = os.path.join(dir_path, "qr.png")
     qrcode.make(value).save(qr_image_path)
     
     logging.info("login using QR. Session will expire in 60 seconds!")    
