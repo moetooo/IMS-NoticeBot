@@ -164,6 +164,7 @@ async def open_chat(chat_page: Page, chat_name: str) -> None:
     await chat_page.keyboard.press('Control+a')
     await chat_page.keyboard.press('Backspace')
     await chat_page.keyboard.type(chat_name)
+    await chat_page.get_by_title(chat_name, exact=True).click()
     # await asyncio.sleep(5)
     
 #===================SEND-TEXT====================#
@@ -352,7 +353,7 @@ async def main():
                 browser = await playwright.chromium.launch_persistent_context(
                     user_data_dir=userDir,
                     user_agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                    headless=True,
+                    headless=False,
                     args=[
                         '--no-sandbox',
                         '--disable-setuid-sandbox',
