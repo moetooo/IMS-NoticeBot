@@ -115,7 +115,8 @@ async def run_scraper(notice_page: Page, url: str) -> dict | int:
         total_messages = await process_notices(scraped_notices)
         filenames = 0 
         if len(total_messages) > 0 and len(total_messages) <= 10:
-            filenames = await download_pdf(notice_page, total_messages)        
+            filenames = await download_pdf(notice_page, total_messages)
+            
         return filenames
 
     except Exception as error:
@@ -123,3 +124,4 @@ async def run_scraper(notice_page: Page, url: str) -> dict | int:
 
     finally:
         await notice_page.close()
+
