@@ -8,56 +8,42 @@ logging.basicConfig(level=logging.INFO,
                     datefmt='[%Y-%m-%d | %H:%M:%S]') 
 
 client = pymongo.MongoClient(DB_URL)
-database = client.get_database('whatsapp_bot_db')
+database = client.get_database('test_db')
 notice_collection = database.get_collection('notices') 
 if notice_collection is None:
     notice_collection = database['notices']
     
-async def create_notices(scraped_notices: dict) -> None:
+async def create_notices(scraped_notices: list[dict]) -> None:
     try:
-        notices = []
-        for notice_id in scraped_notices.keys():
-            notice_title, notice_date, notice_published_by = scraped_notices[notice_id]
-            notice = {
-            '_id': len(notices) + 1,
-            'NoticeId': notice_id,
-            'Title': notice_title,
-            'Date': notice_date,
-            'Published_By': notice_published_by
-            }
-            notices.append(notice)
-            
-        if notices:
-            notice_collection.insert_many(notices)
-
+        notice_collection.insert_many(scraped_notices)
     except Exception as error:
         logging.error(f"{create_notices.__name__}: {str(error)}") 
     
-async def update_notices(scraped_notices: dict) -> None:
+async def update_notices(scraped_notices: list[dict]) -> None:
     try:
-        for notice_id, (scraped_title, scraped_date, scraped_published_by) in scraped_notices.items(): 
+        for notice in scraped_notices:
             notice_collection.find_one_and_update(
-            {'NoticeId': notice_id}, 
-            {'$set': {'Title': scraped_title, 'Date': scraped_date, 'Published_By': scraped_published_by}}
-            )        
+            {'_id': notice["_id"]}, 
+            {'$set': {'Title': notice["Title"], 'Date': notice["Date"], 'Published_By': notice["Published_By"]}}
+            )   
     except Exception as error:
         logging.error(f"{update_notices.__name__}: {str(error)}")
         
-async def compare_notices(scraped_notices: dict) -> dict:
+async def compare_notices(scraped_notices: list[dict], exist_notices) -> dict:
     try:
-        exist_notice_titles = [document["Title"] for document in notice_collection.find({},{"_id": 0,"Title": 1})]
-        print(exist_notice_titles)
-        unmatched_notices = {}
-        for notice_id, (scraped_title, scraped_date, scraped_published_by) in scraped_notices.items():        
-            if scraped_title not in exist_notice_titles:
-                unmatched_notices[notice_id] = [scraped_title, scraped_date, scraped_published_by]
-        print(unmatched_notices)
+        exist_notice_titles = {exist_notice["Title"] for exist_notice in exist_notices}
+        logging.info(f'exist_notice_titles : {exist_notice_titles}')
+        unmatched_notices = []
+        for notice in scraped_notices:
+            if notice["Title"] not in exist_notice_titles:
+                unmatched_notices.append(notice)
+        logging.info(f'unmatched_notices : {unmatched_notices}')
         return unmatched_notices
     
     except Exception as error:
         logging.error(f"{compare_notices.__name__}: {str(error)}")
         
-async def process_notices(scraped_notices: dict) -> dict:
+async def process_notices(scraped_notices: list[dict], exist_notices: list) -> list[dict]:
     try:
         total_notices = notice_collection.count_documents({})
         if total_notices == 0:
@@ -65,23 +51,19 @@ async def process_notices(scraped_notices: dict) -> dict:
             return scraped_notices
         
         elif total_notices == 10:
-            compare_result = await compare_notices(scraped_notices)            
+            compare_result = await compare_notices(scraped_notices, exist_notices)            
             if len(compare_result) > 0 and len(compare_result) <= 10:
                 await update_notices(scraped_notices) 
-                return compare_result
-            return {}
+            return compare_result
         else:
             logging.error(f'{process_notices.__name__}: Unexpected document count: {total_notices}')
             
     except Exception as error:
         logging.error(f"{process_notices.__name__}: {str(error)}")
         
-async def get_notices(index: int) -> dict:
+async def get_exist_notice_title() -> list:
     try:
-        notice_data = notice_collection.find_one(
-        {"_id" : index}, 
-        {'_id' : 1, 'Title' : 1, 'Date': 1, 'Published_By' : 1}
-    )
-        return notice_data
+        return notice_collection.find({},{"_id": 0,"Title": 1})
+    
     except Exception as error:
-        logging.error(f"{get_notices.__name__}: {str(error)}")
+        logging.error(f"{get_exist_notice_title.__name__}: {str(error)}")

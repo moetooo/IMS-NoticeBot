@@ -12,22 +12,16 @@ special_chars = [
     ":", "@", "+", "`", "|", "=", "[", "]"
 ]
 
-async def process_data(notices: list[str], publish: list[str], dates:list[str]) -> dict:
-    formatted_data = {}
-    for i in range(1, 11):
-        formatted_data[i] = [notices[i - 1], dates[i - 1], publish[i - 1]]
-    return formatted_data
-
 async def filter_title(title: str) -> str:
     for char in special_chars:
         title = title.replace(char, "")
     return title
         
-async def download_pdf(page: Page, notice_data: dict) -> dict:
+async def download_pdf(page: Page, updated_notices: list[dict]) -> dict:
     try:
-        filenames = {}    
-        for notice_id in notice_data.keys():
-            element_id = 2 * notice_id + 2
+        new_notices = []    
+        for up_notice in updated_notices:
+            element_id = 2 * up_notice["_id"] + 2
             base_path = f'/html/body/form/table/tbody/tr[{element_id}]'
             title_with_url = page.locator(f'xpath={base_path}/td[2]/a')
             title_without_url = page.locator(f'xpath={base_path}/td[2]/b')
@@ -42,18 +36,23 @@ async def download_pdf(page: Page, notice_data: dict) -> dict:
                         await donwload_file_element.click(modifiers=["Alt", ])
                         
                     filename = f'{title}.pdf'
-                    filePath = os.path.join(os.getcwd(),'downloads', filename)
+                    file_path = os.path.join(os.getcwd(),'downloads', filename)
                     download = await download_info.value
                     
-                    await download.save_as(filePath)
-                    filenames.update({notice_id : filePath})
+                    await download.save_as(file_path)
+                    
+                    up_notice["Attachment"] = file_path
+
+                    new_notices.append(up_notice)
                 else:
-                    filenames.update({notice_id : notice_url})
+                    up_notice["Attachment"] = notice_url
+                    new_notices.append(up_notice)
                 
             elif await title_without_url.count() > 0:
-                filenames.update({notice_id : None})
+                up_notice["Attachment"] = None
+                new_notices.append(up_notice)
                 
-        return filenames
+        return new_notices
         
     except Exception as error:
         logging.error(f'{download_pdf.__name__}: {error}')
@@ -63,15 +62,13 @@ async def scrap_notices(page: Page, url: str) -> dict:
         await page.goto(url, wait_until="networkidle", timeout=120000)
         logging.info(f'GET {url}')
                 
-        notice_list = []
-        published_by_list = []
-        date_list = []
         tasks = [] 
-        results = []    
+        results = []
+        notices = []    
         
         for index in range(1, 11):#MAX 10 NOTICES
-            Id = 2 * index + 2
-            base_path = f'/html/body/form/table/tbody/tr[{Id}]'
+            element_id = 2 * index + 2
+            base_path = f'/html/body/form/table/tbody/tr[{element_id}]'
             title_with_url = page.locator(f'xpath={base_path}/td[2]/a')
             title_without_url = page.locator(f'xpath={base_path}/td[2]/b')
             
@@ -94,34 +91,35 @@ async def scrap_notices(page: Page, url: str) -> dict:
                     results = [title,published_by, date]
     
             fetched_notice = results[0].replace(":", "")
-            fetched_published_by = results[1].replace("Published By: ", "").strip()
             fetched_date = results[2].strip()
-
-            notice_list.append(fetched_notice)
-            published_by_list.append(fetched_published_by)
-            date_list.append(fetched_date)
+            fetched_published_by = results[1].replace("Published By: ", "").strip()
             
-            Id += 2
+            notices.append(
+                {
+                    "_id" : index,
+                    "Title" : fetched_notice,
+                    "Date" : fetched_date,
+                    "Published_By" : fetched_published_by
+                }
+            )
+            element_id += 2
             
-        formatted_data = await process_data(notice_list, published_by_list, date_list)
-        return formatted_data
+        return notices
 
     except Exception as error:
         logging.error(f'{scrap_notices.__name__}: {error}')
     
-async def run_scraper(notice_page: Page, url: str) -> dict | int:
+async def run_scraper(notice_page: Page, exist_notices: list, url: str) -> list[dict] | int:
     try:
         scraped_notices = await scrap_notices(notice_page, url)
-        total_messages = await process_notices(scraped_notices)
-        filenames = 0 
+        total_messages = await process_notices(scraped_notices, exist_notices)
+        new_notices = 0 
         if len(total_messages) > 0 and len(total_messages) <= 10:
-            filenames = await download_pdf(notice_page, total_messages)
-            
-        return filenames
+            new_notices = await download_pdf(notice_page, total_messages)
+        return new_notices
 
     except Exception as error:
         logging.error(f"{run_scraper.__name__}: {str(error)}")
 
     finally:
         await notice_page.close()
-
