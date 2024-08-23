@@ -8,7 +8,7 @@ logging.basicConfig(level=logging.INFO,
                     datefmt='[%Y-%m-%d | %H:%M:%S]') 
 
 client = pymongo.MongoClient(DB_URL)
-database = client.get_database('test_db')
+database = client.get_database('whatsapp_bot_db')
 notice_collection = database.get_collection('notices') 
 if notice_collection is None:
     notice_collection = database['notices']
@@ -29,12 +29,16 @@ async def update_notices(scraped_notices: list[dict]) -> None:
     except Exception as error:
         logging.error(f"{update_notices.__name__}: {str(error)}")
         
-async def compare_notices(scraped_notices: list[dict], exist_notices) -> dict:
+async def compare_notices(scraped_notices: list[dict]) -> dict:
     try:
+        exist_notices = notice_collection.find({},{"_id": 0,"Title": 1})
         exist_notice_titles = {exist_notice["Title"] for exist_notice in exist_notices}
         logging.info(f'exist_notice_titles : {exist_notice_titles}')
         unmatched_notices = []
         for notice in scraped_notices:
+            if len(exist_notice_titles) == 0:
+                break
+            
             if notice["Title"] not in exist_notice_titles:
                 unmatched_notices.append(notice)
         logging.info(f'unmatched_notices : {unmatched_notices}')
@@ -43,7 +47,7 @@ async def compare_notices(scraped_notices: list[dict], exist_notices) -> dict:
     except Exception as error:
         logging.error(f"{compare_notices.__name__}: {str(error)}")
         
-async def process_notices(scraped_notices: list[dict], exist_notices: list) -> list[dict]:
+async def process_notices(scraped_notices: list[dict]) -> list[dict]:
     try:
         total_notices = notice_collection.count_documents({})
         if total_notices == 0:
@@ -51,7 +55,7 @@ async def process_notices(scraped_notices: list[dict], exist_notices: list) -> l
             return scraped_notices
         
         elif total_notices == 10:
-            compare_result = await compare_notices(scraped_notices, exist_notices)            
+            compare_result = await compare_notices(scraped_notices)            
             if len(compare_result) > 0 and len(compare_result) <= 10:
                 await update_notices(scraped_notices) 
             return compare_result
@@ -61,9 +65,3 @@ async def process_notices(scraped_notices: list[dict], exist_notices: list) -> l
     except Exception as error:
         logging.error(f"{process_notices.__name__}: {str(error)}")
         
-async def get_exist_notice_title() -> list:
-    try:
-        return notice_collection.find({},{"_id": 0,"Title": 1})
-    
-    except Exception as error:
-        logging.error(f"{get_exist_notice_title.__name__}: {str(error)}")

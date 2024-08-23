@@ -109,10 +109,10 @@ async def scrap_notices(page: Page, url: str) -> dict:
     except Exception as error:
         logging.error(f'{scrap_notices.__name__}: {error}')
     
-async def run_scraper(notice_page: Page, exist_notices: list, url: str) -> list[dict] | int:
+async def run_scraper(notice_page: Page, url: str) -> list[dict] | int:
     try:
         scraped_notices = await scrap_notices(notice_page, url)
-        total_messages = await process_notices(scraped_notices, exist_notices)
+        total_messages = await process_notices(scraped_notices)
         new_notices = 0 
         if len(total_messages) > 0 and len(total_messages) <= 10:
             new_notices = await download_pdf(notice_page, total_messages)
