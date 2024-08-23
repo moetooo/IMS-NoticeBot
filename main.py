@@ -63,13 +63,13 @@ async def filter_text(title: str) -> bool:
 async def fetch_login_code(login_page: Page, retry_count: int = 3) -> str:
     for count in range(retry_count):
         logging.info(f'Attempt {count + 1}/{retry_count}: Search for code')
-        # await send_telegram_message(f'Attempt {count + 1}/{retry_count}: Search for code')
+        await send_telegram_message(f'Attempt {count + 1}/{retry_count}: Search for code')
         
         code_element = await login_page.query_selector('div[aria-details="link-device-phone-number-code-screen-instructions"]')
         
         if code_element:
             logging.info('Code element found')
-            # await send_telegram_message('Code element found')
+            await send_telegram_message('Code element found')
             
             data_link_code = await code_element.get_attribute('data-link-code')
             if data_link_code:
@@ -78,7 +78,7 @@ async def fetch_login_code(login_page: Page, retry_count: int = 3) -> str:
         
         if count < retry_count - 1:
             logging.info('Code not found. Waiting before next attempt...')
-            # await send_telegram_message('Code not found. Waiting before next attempt...')
+            await send_telegram_message('Code not found. Waiting before next attempt...')
             await asyncio.sleep(10)
     
     logging.warning('Failed to find login code after all attempts')
@@ -105,7 +105,7 @@ async def get_qr(login_page: Page) -> None:
 async def login(login_page: Page, url: str) -> Page:   
     try:
         logging.info(f'GET {url}')
-        # await send_telegram_message(f'GET {url}')
+        await send_telegram_message(f'GET {url}')
         await login_page.goto(url, wait_until="load", timeout=120000)
         
         await asyncio.sleep(60)
@@ -119,7 +119,7 @@ async def login(login_page: Page, url: str) -> Page:
 
         else:
             logging.info('Logging in using phone number')
-            # await send_telegram_message('Logging in using phone number')
+            await send_telegram_message('Logging in using phone number')
             
             await login_page.wait_for_selector('xpath=//span[@role="button" and text()="Link with phone number"]', state='visible', timeout=60000)
             await login_page.locator('xpath=//span[@role="button" and text()="Link with phone number"]').click()
@@ -148,7 +148,7 @@ async def login(login_page: Page, url: str) -> Page:
             await asyncio.sleep(5)
             
             if login_code:
-                # await send_telegram_message(login_code)
+                await send_telegram_message(login_code)
                 logging.info(f"Login code: {login_code}")
         
         await login_page.wait_for_selector(search_box_path)
@@ -241,7 +241,7 @@ async def is_message_delivered(chat_page: Page, last_message_id: str) -> bool:
 async def send_message_with_url(chat_page: Page, chat_name: str, message_content: str, message_count: int) -> None:
     await send_text(chat_page, message_content)
     logging.info(f'MessageNo.{message_count} sent in chat {chat_name}')
-    # await send_telegram_message(f'MessageNo.{message_count} sent in chat {chat_name}')
+    await send_telegram_message(f'MessageNo.{message_count} sent in chat {chat_name}')
 
 #===============MESSAGE-WITH-FILE================#
 async def send_message_with_file(chat_page: Page, chat_name: str, message_content: str, file_path: str, message_count) -> None:
@@ -254,8 +254,8 @@ async def send_message_with_file(chat_page: Page, chat_name: str, message_conten
             lastUploadMessageId = await get_last_message(chat_page)
             
             if await is_message_delivered(chat_page, lastUploadMessageId):
-                logging.info(f'MessageNo.{message_count} sent to chat {chat_name.replace("#", " ")}')
-                # await send_telegram_message(f'MessageNo.{message_count} sent to chat {chat_name.replace("#", " ")}')
+                logging.info(f'MessageNo.{message_count} sent to chat {chat_name.replace("#", "")}')
+                await send_telegram_message(f'MessageNo.{message_count} sent to chat {chat_name.replace("#", " ")}')
                 
     if chat_name == chat_names[-1] and os.path.exists(file_path):
         os.remove(file_path)
@@ -278,7 +278,7 @@ async def send_to_whatsapp(chat_page: Page, new_notices: list[dict]) -> None:
             
             if await filter_text(notice_title) or notice_date != today_date :
                 logging.info(f'Skipping MessageNo.{message_count}')
-                # await send_telegram_message(f'Skipping MessageNo.{message_count}')
+                await send_telegram_message(f'Skipping MessageNo.{message_count}')
                 message_count -= 1
                 continue
                         
@@ -304,17 +304,17 @@ async def send_to_whatsapp(chat_page: Page, new_notices: list[dict]) -> None:
 async def scraper_task(notice_page: Page, whatsapp_page: Page,  url: str) -> None:    
     try:
         logging.info('Checking for New Notices')
-        # await send_telegram_message('Checking for New Notices')
+        await send_telegram_message('Checking for New Notices')
         
         scrap_result = await run_scraper(notice_page, url)
         if isinstance(scrap_result, list):
             logging.info(f'{len(scrap_result)} New Notices Found!')        
-            # await send_telegram_message(f'{len(scrap_result)} New Notices Found!')
+            await send_telegram_message(f'{len(scrap_result)} New Notices Found!')
             await send_to_whatsapp(whatsapp_page, scrap_result)
             
         elif isinstance(scrap_result, int):
             logging.info('Notices are up to date')
-            # await send_telegram_message('Notices are up to date')
+            await send_telegram_message('Notices are up to date')
         else:
             logging.warning(f'Unexpected scraping result type: {type(scrap_result)}')
     
@@ -324,7 +324,7 @@ async def scraper_task(notice_page: Page, whatsapp_page: Page,  url: str) -> Non
     finally:
         await notice_page.close()
     logging.info('Sleeping for 900 seconds')
-    # await send_telegram_message('Sleeping for 900 seconds')
+    await send_telegram_message('Sleeping for 900 seconds')
     await asyncio.sleep(900)
     
 async def keep_session_alive(page: Page) -> bool:
@@ -334,7 +334,7 @@ async def keep_session_alive(page: Page) -> bool:
             await search_box.click()
             await asyncio.sleep(10)
             logging.info("WhatsApp session is active")
-            # await send_telegram_message("WhatsApp session is active")
+            await send_telegram_message("WhatsApp session is active")
         return False
             
     except Exception as e:
